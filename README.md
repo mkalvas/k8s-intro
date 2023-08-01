@@ -13,7 +13,7 @@ A short introduction to Kubernetes through practical examples.
 - `db-api` — a simple API that connects to a `mysql` database
 - `mysql` — a single instance mysql deployment with a persistent volume and secrets, meant for backing the `db-api`
 
-## Course
+## The Course
 
 _Note_: For the remainder of the course we'll assume that you have a minikube cluster running locally (`minikube start`) and your `kubectl` is configured to use that cluster. We'll also assume all the commands listed are run from the project root unless specifically stated otherwise.
 
@@ -49,7 +49,68 @@ kubectl get pods -o wide
 # hello-api-deployment-984499c6f-85m44   1/1     Running   0          5m38s   10.244.0.4   minikube
 ```
 
-Great! Our API is running but how do we actually send traffic to it. There's nothing exposing the container in the pod to the cluster or the outside world. In order to do that, we need to create a [Service](https://kubernetes.io/docs/concepts/services-networking/service/).
+Great! Our API is running but let's pause to see what's going on. If we inspect our deployment a little more closely using the `kubectl describe` command, we can see how the declarative specification works.
+
+```sh
+kubectl describe deploy hello-api-deployment
+# Name:                   hello-api-deployment
+# Namespace:              default
+# Labels:                 app=hello-api
+# Annotations:            deployment.kubernetes.io/revision: 1
+# Selector:               app=hello-api
+# Replicas:               1 desired | 1 updated | 1 total | 1 available | 0 unavailable
+# StrategyType:           RollingUpdate
+# MinReadySeconds:        0
+# RollingUpdateStrategy:  25% max unavailable, 25% max surge
+# Pod Template:
+#   Labels:  app=hello-api
+#   Containers:
+#    hello-api:
+#     Image:      hello-api:v1
+#     Port:       <none>
+#     Host Port:  <none>
+#     Limits:
+#       cpu:        500m
+#       memory:     128Mi
+#     Environment:  <none>
+#     Mounts:       <none>
+#   Volumes:        <none>
+# Conditions:
+#   Type           Status  Reason
+#   ----           ------  ------
+#   Available      True    MinimumReplicasAvailable
+#   Progressing    True    NewReplicaSetAvailable
+# OldReplicaSets:  <none>
+# NewReplicaSet:   hello-api-deployment-984499c6f (1/1 replicas created)
+# Events:
+#   Type    Reason             Age   From                   Message
+#   ----    ------             ----  ----                   -------
+#   Normal  ScalingReplicaSet  8s    deployment-controller  Scaled up replica set hello-api-deployment-984499c6f to 1
+```
+
+In the description, you can see a lot information about our deployment including the pod template we're using to create containers, the `ReplicaSets`, and the events that have been seen and handled by the cluster.
+
+Let's make a change. In the [`./hello-api/k8s/deployment.yaml`](./hello-api/k8s/deployment.yaml) file, change the `replicas` field to `2`. Now, apply our changed spec and see what happens.
+
+```sh
+kubectl apply -f ./hello-api/k8s/deployment.yaml
+kubectl get pods
+# NAME                                   READY   STATUS 
+# hello-api-deployment-984499c6f-bgqz5   1/1     Running
+# hello-api-deployment-984499c6f-bl8lg   1/1     Running
+
+kubectl describe deployment hello-api
+# NewReplicaSet:   hello-api-deployment-984499c6f (2/2 replicas created)
+# Events:
+#   Type    Reason             Age   From                   Message
+#   ----    ------             ----  ----                   -------
+#   Normal  ScalingReplicaSet  11m   deployment-controller  Scaled up replica set hello-api-deployment-984499c6f to 1
+#   Normal  ScalingReplicaSet  61s   deployment-controller  Scaled up replica set hello-api-deployment-984499c6f to 2 from 1
+```
+
+Near the bottom we can see that the cluster saw a difference between the specification of our deployment (that we just applied) and the status of the (old) deployment in the cluster. It then took the appropriate action to create another `ReplicaSet` for our deployment and we now have two pods running. This is the real magic of Kubernetes. You can declare what you'd like the state of your cluster to be and it will handle everything else.
+
+Now we're going to finish setting up the API by allowing it to receive traffic. Right now, there's nothing exposing the container in the pod to the cluster or the outside world. In order to do that, we need to create a [Service](https://kubernetes.io/docs/concepts/services-networking/service/).
 
 We'll apply the [`hello-api/k8s/service.yaml`](./hello-api/k8s/service.yaml) file and then make a curl request to our app.
 
@@ -146,7 +207,7 @@ kubectl apply -f ./db-api/k8s/service.yaml
 Again (for macs with docker engine) we can connect to our service and see that it's running and connected to mysql!
 
 ```sh
-# in a second tab
+# in a second tab (your url will be different)
 minikube service db-api
 curl "http://127.0.0.1:63872/users"
 # [{"id":1,"name":"mike"}]

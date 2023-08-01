@@ -5,7 +5,7 @@ metadata:
   labels:
     app: hello-api
 spec:
-  replicas: 1 # how many versions of the app we should run
+  replicas: 2 # how many versions of the app we should run
   selector:
     matchLabels:
       app: hello-api
