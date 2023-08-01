@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-api-deployment
+  labels:
+    app: db-api
+spec:
+  replicas: 1 # how many versions of the app we should run
+  selector:
+    matchLabels:
+      app: db-api
+  template:
+    metadata:
+      labels:
+        app: db-api
+    spec:
+      containers:
+        - name: db-api
+          image: db-api:v1 # the docker image that we're running
+          env:
+            - name: DB_HOST
+              value: mysql # this is the name of the Service we create for mysql
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: password
+          resources:
+            # the maximum resources that this can consume before being throttled
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
